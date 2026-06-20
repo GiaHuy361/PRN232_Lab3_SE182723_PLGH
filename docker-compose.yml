@@ -1,20 +1,20 @@
 services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: prn232_lms_lab2_sqlserver
+    container_name: prn232_lms_lab3_sqlserver
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
     ports:
       - "12433:1433"
     volumes:
-      - sqlserver_lab2_data:/var/opt/mssql
+      - sqlserver_lab3_data:/var/opt/mssql
 
   api:
     build:
       context: .
       dockerfile: PRN232.LMS.API/Dockerfile
-    container_name: prn232_lms_lab2_api
+    container_name: prn232_lms_lab3_api
     ports:
       - "8081:8080"
     depends_on:
@@ -26,4 +26,4 @@ services:
       Jwt__Secret: "${JWT_SECRET}"
 
 volumes:
-  sqlserver_lab2_data:
+  sqlserver_lab3_data:
