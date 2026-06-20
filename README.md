@@ -1,99 +1,106 @@
-# PRN232 Lab 2 - Advanced REST API & Security
+# PRN232 Lab 3 - gRPC & Microservices Architecture
 
-Welcome to the Learning Management System (LMS) Web API project for **PRN232 Lab 2 - Advanced REST API & Security**. 
+Welcome to the Learning Management System (LMS) project for **PRN232 Lab 3 - gRPC & Microservices Architecture**.
 
-This version extends Lab 1 by integrating advanced security features (JWT Authentication, Refresh Token Rotation, BCrypt Hashing, Role-Based Access Control), strict validations, Content Negotiation (JSON/XML), API Versioning, custom middlewares, and containerized Docker configurations.
-
----
-
-## Key Features in Lab 2
-
-1. **Security & Hashing**: Secure user authentication via `BCrypt.Net-Next` password hashing (no plain text passwords saved in database).
-2. **JWT Authentication & Rotation**: Fully-featured JWT authentication with Random Refresh Token Rotation and secure SHA-256 database token hashing.
-3. **Role-Based Authorization (RBAC)**: Fine-grained access control (e.g. GET endpoints accessible by `Admin` and `Student` roles; POST/PUT/DELETE endpoints restricted to `Admin` only).
-4. **API Versioning**: URL segment-based API versioning for Students:
-   - `/api/v1/students` (does not return the `phone` property)
-   - `/api/v2/students` (returns the `phone` property)
-5. **Advanced Nested Resource**: Route `/api/courses/{courseId}/students` to fetch distinct student listings dynamically registered in a course through enrollments.
-6. **Advanced Content Negotiation**: Supports both `application/json` and `application/xml` formats. Rejects unsupported formats with an HTTP `406 Not Acceptable` response.
-7. **Robust Input Validation**: Multi-level validation employing Data Annotations, `FluentValidation` (for Semesters), and custom `DateOfBirth` check.
-8. **Centralized Middleware**:
-   - **Global Exception Handling**: Safe, centralized try-catch middleware that intercepts exceptions and responds with a unified HTTP `500` JSON error layout.
-   - **Request Logging**: Safe, diagnostic request-execution logging (HTTP Method, Request Path, Response Code, Elapsed Milliseconds) that excludes credentials and secrets.
-9. **Swagger JWT Testing**: Swagger UI equipped with Bearer Authorize support and dynamic lock icons on protected endpoints only.
+This version refactors the monolithic Lab 2 application into a **Microservices Architecture** with service-to-service communication via **gRPC**, an **API Gateway** (YARP), independent databases per service, **Serilog** logging, JWT Authentication, and full Docker Compose deployment.
 
 ---
 
-## Pre-requisites & Local Environment Configuration
+## Architecture Overview
 
-1. **Docker**: Ensure Docker Desktop is installed and running on your system.
-2. **SSMS**: SQL Server Management Studio or Azure Data Studio for executing database scripts.
-3. **Environment Setup**:
-   - Duplicate `.env.example` in the root workspace directory and rename it to `.env`.
-   - Provide custom strong password values for SQL Server and JWT signing keys:
-     ```env
-     MSSQL_SA_PASSWORD=YourStrongPassword123!
-     JWT_SECRET=YourSuperLongSecureJwtSecretKeyWithMinimum256BitsOfStrength!
-     ```
-   *(The `.env` file is excluded in `.gitignore` to keep credentials secure).*
+```
+Client
+  │
+  ▼
+API Gateway (YARP)          ← Routes & validates JWT
+  ├── /api/auth/*    → Identity Service
+  ├── /api/students/* → Student Service
+  └── /api/courses/*  → Course Service
+                              │
+                         gRPC │
+                              ▼
+                       Student Service
+```
 
 ---
 
-## How to Run the Project with Docker
+## Services
 
-1. **Build and start the containerized services**:
-   Run the following terminal command in the root workspace folder:
-   ```bash
-   docker compose up --build -d
+| Service | Port | Database | Responsibilities |
+| :--- | :--- | :--- | :--- |
+| **API Gateway** | `8080` | — | Route requests, JWT validation |
+| **Identity Service** | `5001` | `identity-db` | Auth, JWT generation, Refresh Token |
+| **Student Service** | `5002` | `student-db` | Student management, gRPC server |
+| **Course Service** | `5003` | `course-db` | Course & enrollment management, gRPC client |
+
+---
+
+## Key Features in Lab 3
+
+1. **Microservices Architecture**: System decomposed into 3 independent ASP.NET Core Web API services, each with its own database.
+2. **gRPC Communication**: Course Service communicates with Student Service via gRPC to verify student existence before enrollment.
+3. **API Gateway (YARP)**: Reverse proxy routing all client requests to the appropriate service with JWT validation.
+4. **JWT Authentication**: Centralized in Identity Service; all other services validate tokens independently.
+5. **Serilog Logging**: Structured logging across all services (Request Path, HTTP Method, Status Code, Execution Time).
+6. **Docker Compose**: Full multi-container deployment with 7 containers (4 services + 3 databases).
+7. **Swagger UI**: Each service exposes its own Swagger documentation with JWT Bearer support.
+
+---
+
+## Pre-requisites
+
+1. **Docker Desktop** installed and running.
+2. **Duplicate `.env.example`** → rename to `.env` and fill in values:
+   ```env
+   MSSQL_SA_PASSWORD=YourStrongPassword123!
+   JWT_SECRET=YourSuperLongSecureJwtSecretKeyWithMinimum256BitsOfStrength!
    ```
-   This initializes:
-   - SQL Server Database container at host port **`12433`** (container port `1433`).
-   - Web API container at host port **`8081`** (container port `8080`).
 
-2. **Initialize and Seed the Database**:
-   - Connect to SQL Server using SSMS or Azure Data Studio:
-     - **Server Name**: `localhost,12433`
-     - **Authentication**: SQL Server Authentication
-     - **Login**: `sa`
-     - **Password**: *[The MSSQL_SA_PASSWORD value specified in your local `.env` file]*
-   - Open and execute the database script located at:
-     ```text
-     database/PRN232_LMS_full_database.sql
-     ```
-     *(This script automatically drops existing tables in safe order, creates the schema, and seeds default records including Admin/Student credentials).*
+---
 
-3. **Access Swagger UI**:
-   Open your browser and navigate to:
-   **[http://localhost:8081/swagger](http://localhost:8081/swagger)**
+## How to Run
+
+```bash
+docker compose up --build -d
+```
+
+This starts all 7 containers:
+- `api-gateway` → port **8080**
+- `identity-service` → port **5001**
+- `student-service` → port **5002**
+- `course-service` → port **5003**
+- `identity-db`, `student-db`, `course-db` → SQL Server instances
 
 ---
 
 ## Testing Credentials
 
-The SQL script seeds two testing user accounts equipped with BCrypt hashed passwords:
-
 | Username | Password | Role |
 | :--- | :--- | :--- |
-| **admin** | `Admin@123` | **Admin** |
-| **student** | `Student@123` | **Student** |
+| **admin** | `123456` | **Admin** |
+| **student** | `123456` | **Student** |
 
 ---
 
-## Key Testing Endpoints & Workflow
+## Key Testing Workflow
 
-1. **Obtain Access Token**:
-   - Send `POST /api/auth/login` with `admin` or `student` credentials.
-   - Copy the `accessToken` string from the JSON response.
-2. **Authorize Swagger UI**:
-   - Click the green **Authorize** button in Swagger UI.
-   - Paste the token in the text input box and click **Authorize**.
-3. **Test Versioning**:
-   - Use the Swagger dropdown selector to toggle between `"v1"` and `"v2"` docs.
-   - Verify `GET /api/v1/students` does not contain `phone` fields.
-   - Verify `GET /api/v2/students` does contain `phone` fields.
-4. **Test Role-Based Access Control**:
-   - **Student token**: Calling `GET /api/students` returns `200 OK`. Calling `POST /api/students` yields `403 Forbidden` with a standard `ApiResponse` layout.
-   - **Admin token**: Calling `POST /api/students` completes successfully (`201 Created`).
-   - **Invalid or Missing Token**: Calling protected endpoints yields `401 Unauthorized` with `WWW-Authenticate: Bearer` headers.
-5. **Test Nested Endpoint**:
-   - Call `GET /api/courses/{courseId}/students` to check registered students. Try `expand=enrollments` to see filtered course-specific enrollments.
+1. **Login**: `POST /api/auth/login` → copy `accessToken`
+2. **Authorize**: Paste token into Swagger Authorize button
+3. **Test gRPC flow**: `POST /api/courses/{courseId}/enrollments` → Course Service calls Student Service via gRPC to verify student
+4. **Test protected endpoints**: Admin-only endpoints return `403 Forbidden` for Student role
+5. **Test unauthorized**: Missing token returns `401 Unauthorized`
+
+---
+
+## Swagger UI (per service)
+
+| Service | URL |
+| :--- | :--- |
+| API Gateway | http://localhost:8080/swagger |
+| Identity Service | http://localhost:5001/swagger |
+| Student Service | http://localhost:5002/swagger |
+| Course Service | http://localhost:5003/swagger |
+
+---
+
+## Student ID: SE182723
